@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 
 // ---------- Data ----------
 const PROGRESSIONS = [
@@ -32,6 +32,22 @@ const FONTS = `
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..700&family=Space+Mono:wght@400;700&display=swap');
 `;
 
+const Step = ({ n, title, children }) => (
+  <section style={{ marginBottom: 56 }}>
+    <div style={{ display: "flex", alignItems: "baseline", gap: 16, marginBottom: 20 }}>
+      <span style={{
+        fontFamily: "'Space Mono', monospace", fontSize: 14, color: "var(--accent)",
+        border: "1px solid var(--accent)", borderRadius: 999, padding: "2px 12px", flexShrink: 0,
+      }}>{n}</span>
+      <h2 style={{
+        fontFamily: "'Fraunces', serif", fontSize: 30, fontWeight: 500, margin: 0,
+        fontStyle: "italic", letterSpacing: "-0.01em",
+      }}>{title}</h2>
+    </div>
+    {children}
+  </section>
+);
+
 export default function SongCraft() {
   const [progression, setProgression] = useState(null);
   const [activeSections, setActiveSections] = useState(["verse", "chorus"]);
@@ -54,6 +70,15 @@ export default function SongCraft() {
   const updateLyric = (sectionId, value) => {
     setLyricsBySection((prev) => ({ ...prev, [sectionId]: value }));
   };
+
+  const didGenerate = useRef(false);
+
+  useEffect(() => {
+    if (didGenerate.current) {
+      resultRef.current?.scrollIntoView({ behavior: "smooth" });
+      didGenerate.current = false;
+    }
+  }, [lyricsBySection]);
 
   const generateLyrics = async () => {
     setError("");
@@ -88,29 +113,13 @@ Rules:
       const text = data.content.map((i) => i.text || "").join("").replace(/```json|```/g, "").trim();
       const parsed = JSON.parse(text);
       setLyricsBySection((prev) => ({ ...prev, ...parsed }));
-      setTimeout(() => resultRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+      didGenerate.current = true;
     } catch (e) {
       setError("Couldn't generate lyrics — try again in a moment.");
     } finally {
       setLoading(false);
     }
   };
-
-  const Step = ({ n, title, children }) => (
-    <section style={{ marginBottom: 56 }}>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 16, marginBottom: 20 }}>
-        <span style={{
-          fontFamily: "'Space Mono', monospace", fontSize: 14, color: "var(--accent)",
-          border: "1px solid var(--accent)", borderRadius: 999, padding: "2px 12px", flexShrink: 0,
-        }}>{n}</span>
-        <h2 style={{
-          fontFamily: "'Fraunces', serif", fontSize: 30, fontWeight: 500, margin: 0,
-          fontStyle: "italic", letterSpacing: "-0.01em",
-        }}>{title}</h2>
-      </div>
-      {children}
-    </section>
-  );
 
   return (
     <div style={{
