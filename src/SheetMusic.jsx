@@ -24,8 +24,23 @@ export default function SheetMusic({ abcNotation }) {
       <div style={{ fontSize: 12, color: "var(--muted)", letterSpacing: "0.1em", marginBottom: 16 }}>
         MELODY — SHEET MUSIC
       </div>
+      <style>{`
+        .abc-container svg path,
+        .abc-container svg rect,
+        .abc-container svg ellipse,
+        .abc-container svg polygon,
+        .abc-container svg line,
+        .abc-container svg text {
+          fill: #111 !important;
+          stroke: #111 !important;
+        }
+        .abc-container svg text {
+          stroke: none !important;
+        }
+      `}</style>
       <div
         ref={containerRef}
+        className="abc-container"
         style={{
           width: "100%",
           overflowX: "auto",
