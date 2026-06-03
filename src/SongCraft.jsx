@@ -1,15 +1,17 @@
 import React, { useState, useRef, useEffect } from "react";
+import ChordChart from "./ChordChart";
+import SheetMusic from "./SheetMusic";
 
 // ---------- Data ----------
 const PROGRESSIONS = [
-  { id: "1564", name: "The Anthem", roman: "I–V–vi–IV", keyC: "C–G–Am–F", vibe: "Uplifting, used in countless pop hits", songs: "Let It Be, Don't Stop Believin'" },
-  { id: "4536", name: "Sensitive", roman: "IV–V–iii–vi", keyC: "F–G–Em–Am", vibe: "Emotional, J-pop & ballad staple", songs: "Many anime themes" },
-  { id: "6415", name: "The Sad One", roman: "vi–IV–I–V", keyC: "Am–F–C–G", vibe: "Melancholy but hopeful", songs: "Numb, Africa" },
-  { id: "1645", name: "Doo-Wop", roman: "I–vi–IV–V", keyC: "C–Am–F–G", vibe: "50s, nostalgic, warm", songs: "Stand By Me" },
-  { id: "1545", name: "Folk Drive", roman: "I–V–IV–V", keyC: "C–G–F–G", vibe: "Driving, singalong", songs: "Sweet Home Alabama" },
-  { id: "2516", name: "Jazzy", roman: "ii–V–I–vi", keyC: "Dm–G–C–Am", vibe: "Smooth, jazz turnaround", songs: "Autumn Leaves" },
-  { id: "1453", name: "Dreamy", roman: "I–IV–V–iii", keyC: "C–F–G–Em", vibe: "Floaty, wistful", songs: "Indie ballads" },
-  { id: "canon", name: "The Canon", roman: "I–V–vi–iii–IV–I–IV–V", keyC: "C–G–Am–Em–F–C–F–G", vibe: "Grand, cascading, classical", songs: "Canon in D" },
+  { id: "1564", name: "The Anthem", roman: "I–V–vi–IV", keyC: "C–G–Am–F", vibe: "Uplifting, used in countless pop hits" },
+  { id: "4536", name: "Sensitive", roman: "IV–V–iii–vi", keyC: "F–G–Em–Am", vibe: "Emotional, J-pop & ballad staple" },
+  { id: "6415", name: "The Sad One", roman: "vi–IV–I–V", keyC: "Am–F–C–G", vibe: "Melancholy but hopeful" },
+  { id: "1645", name: "Doo-Wop", roman: "I–vi–IV–V", keyC: "C–Am–F–G", vibe: "50s, nostalgic, warm" },
+  { id: "1545", name: "Folk Drive", roman: "I–V–IV–V", keyC: "C–G–F–G", vibe: "Driving, singalong" },
+  { id: "2516", name: "Jazzy", roman: "ii–V–I–vi", keyC: "Dm–G–C–Am", vibe: "Smooth, jazz turnaround" },
+  { id: "1453", name: "Dreamy", roman: "I–IV–V–iii", keyC: "C–F–G–Em", vibe: "Floaty, wistful" },
+  { id: "canon", name: "The Canon", roman: "I–V–vi–iii–IV–I–IV–V", keyC: "C–G–Am–Em–F–C–F–G", vibe: "Grand, cascading, classical" },
 ];
 
 const SECTIONS = [
@@ -27,6 +29,8 @@ const STYLES = [
   { id: "indie", label: "Indie", desc: "dreamy, introspective, textured" },
   { id: "anthemic", label: "Anthemic", desc: "big, soaring, stadium energy" },
 ];
+
+const KEYS = ["C", "G", "D", "A", "E", "F", "Bb"];
 
 const FONTS = `
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..700&family=Space+Mono:wght@400;700&display=swap');
@@ -49,6 +53,7 @@ const Step = ({ n, title, children }) => (
 );
 
 export default function SongCraft() {
+  const [selectedKey, setSelectedKey] = useState("C");
   const [progression, setProgression] = useState(null);
   const [activeSections, setActiveSections] = useState(["verse", "chorus"]);
   const [style, setStyle] = useState(null);
@@ -56,7 +61,11 @@ export default function SongCraft() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [theme, setTheme] = useState("");
+  const [abcNotation, setAbcNotation] = useState("");
+  const [melodyLoading, setMelodyLoading] = useState(false);
+  const [melodyError, setMelodyError] = useState("");
   const resultRef = useRef(null);
+  const didGenerate = useRef(false);
 
   const toggleSection = (id, required) => {
     if (required) return;
@@ -71,8 +80,6 @@ export default function SongCraft() {
     setLyricsBySection((prev) => ({ ...prev, [sectionId]: value }));
   };
 
-  const didGenerate = useRef(false);
-
   useEffect(() => {
     if (didGenerate.current) {
       resultRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -85,6 +92,7 @@ export default function SongCraft() {
     if (!style) { setError("Pick a style first so the lyrics match the mood."); return; }
     if (!progression) { setError("Pick a chord progression to anchor the feel."); return; }
     setLoading(true);
+    setAbcNotation("");
 
     const styleObj = STYLES.find((s) => s.id === style);
     const sectionList = orderedSections.map((s) => s.label).join(", ");
@@ -121,6 +129,41 @@ Rules:
     }
   };
 
+  const generateMelody = async () => {
+    setMelodyError("");
+    if (!progression) { setMelodyError("Pick a chord progression first."); return; }
+    if (!style) { setMelodyError("Pick a style first."); return; }
+    const verseLyrics = lyricsBySection["verse"] || "";
+    if (!verseLyrics) { setMelodyError("Add some verse lyrics first so the melody can follow the rhythm."); return; }
+    setMelodyLoading(true);
+
+    const styleObj = STYLES.find((s) => s.id === style);
+    try {
+      const res = await fetch("/api/generate-melody", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          key: selectedKey,
+          mood: `${styleObj.label} (${styleObj.desc})`,
+          chordProgression: progression.roman,
+          lyrics: verseLyrics,
+        }),
+      });
+      const data = await res.json();
+      if (data.abc) {
+        setAbcNotation(data.abc);
+      } else {
+        setMelodyError("Couldn't generate sheet music — try again.");
+      }
+    } catch (e) {
+      setMelodyError("Couldn't generate sheet music — try again.");
+    } finally {
+      setMelodyLoading(false);
+    }
+  };
+
+  const hasLyrics = orderedSections.some((s) => lyricsBySection[s.id]);
+
   return (
     <div style={{
       "--bg": "#14110f", "--card": "#1f1a17", "--card2": "#28211c",
@@ -132,9 +175,7 @@ Rules:
       <style>{FONTS}</style>
 
       {/* Header */}
-      <header style={{
-        padding: "64px 32px 40px", maxWidth: 780, margin: "0 auto", textAlign: "center",
-      }}>
+      <header style={{ padding: "64px 32px 40px", maxWidth: 780, margin: "0 auto", textAlign: "center" }}>
         <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 12, letterSpacing: "0.35em", color: "var(--accent)", marginBottom: 18 }}>
           ◆ SONGWRITING WORKBENCH ◆
         </div>
@@ -145,14 +186,36 @@ Rules:
           Song<span style={{ fontStyle: "italic", color: "var(--accent)" }}>Craft</span>
         </h1>
         <p style={{ color: "var(--muted)", maxWidth: 460, margin: "0 auto", lineHeight: 1.6, fontSize: 15 }}>
-          Build a song from the ground up. Pick your chords, shape the structure,
-          choose a mood, and write.
+          Build a song from the ground up. Pick your key, chords, structure, mood, and write.
         </p>
       </header>
 
       <main style={{ maxWidth: 780, margin: "0 auto", padding: "0 32px" }}>
-        {/* Step 1: Progression */}
-        <Step n="01" title="Pick a chord progression">
+
+        {/* Step 1: Key */}
+        <Step n="01" title="Choose a key">
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+            {KEYS.map((k) => {
+              const sel = selectedKey === k;
+              return (
+                <button key={k} onClick={() => setSelectedKey(k)} style={{
+                  padding: "12px 24px", cursor: "pointer",
+                  background: sel ? "var(--card2)" : "var(--card)",
+                  border: `1px solid ${sel ? "var(--accent)" : "var(--line)"}`,
+                  borderRadius: 12, color: sel ? "var(--accent)" : "var(--ink)",
+                  fontFamily: "'Fraunces', serif", fontSize: 22, fontStyle: "italic",
+                  transition: "all .2s",
+                  boxShadow: sel ? "0 0 0 3px rgba(232,160,78,.15)" : "none",
+                }}>
+                  {k}
+                </button>
+              );
+            })}
+          </div>
+        </Step>
+
+        {/* Step 2: Progression */}
+        <Step n="02" title="Pick a chord progression">
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 14 }}>
             {PROGRESSIONS.map((p) => {
               const sel = progression?.id === p.id;
@@ -177,8 +240,8 @@ Rules:
           </div>
         </Step>
 
-        {/* Step 2: Structure */}
-        <Step n="02" title="Shape the structure">
+        {/* Step 3: Structure */}
+        <Step n="03" title="Shape the structure">
           <p style={{ color: "var(--muted)", fontSize: 13, marginTop: -10, marginBottom: 18 }}>
             Verse and Chorus are the backbone. Toggle the Pre-Chorus and Bridge on or off.
           </p>
@@ -213,8 +276,8 @@ Rules:
           </div>
         </Step>
 
-        {/* Step 3: Style */}
-        <Step n="03" title="Choose the mood">
+        {/* Step 4: Style */}
+        <Step n="04" title="Choose the mood">
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 12 }}>
             {STYLES.map((s) => {
               const sel = style === s.id;
@@ -233,8 +296,8 @@ Rules:
           </div>
         </Step>
 
-        {/* Step 4: Lyrics */}
-        <Step n="04" title="Write the lyrics">
+        {/* Step 5: Lyrics */}
+        <Step n="05" title="Write the lyrics">
           <div style={{ marginBottom: 18 }}>
             <label style={{ fontSize: 12, color: "var(--muted)", letterSpacing: "0.05em" }}>THEME OR SUBJECT (optional)</label>
             <input value={theme} onChange={(e) => setTheme(e.target.value)}
@@ -281,6 +344,31 @@ Rules:
           </div>
         </Step>
 
+        {/* Step 6: Chord Chart + Sheet Music */}
+        {hasLyrics && progression && (
+          <Step n="06" title="Your lead sheet">
+            <ChordChart
+              progression={progression}
+              selectedKey={selectedKey}
+              lyricsBySection={lyricsBySection}
+              orderedSections={orderedSections}
+            />
+
+            <div style={{ marginTop: 32 }}>
+              <button onClick={generateMelody} disabled={melodyLoading} style={{
+                width: "100%", padding: "16px", background: "var(--card2)", color: "var(--accent)",
+                border: "1px solid var(--accent)", borderRadius: 12, cursor: melodyLoading ? "wait" : "pointer",
+                fontFamily: "'Space Mono', monospace", fontWeight: 700, fontSize: 14,
+                letterSpacing: "0.05em", opacity: melodyLoading ? 0.7 : 1,
+              }}>
+                {melodyLoading ? "GENERATING SHEET MUSIC…" : "♩ GENERATE MELODY SHEET MUSIC"}
+              </button>
+              {melodyError && <div style={{ color: "#e87a4e", fontSize: 13, marginTop: 12, textAlign: "center" }}>{melodyError}</div>}
+              <SheetMusic abcNotation={abcNotation} />
+            </div>
+          </Step>
+        )}
+
         {/* Summary footer */}
         <div style={{
           marginTop: 20, padding: "24px", background: "var(--card2)", borderRadius: 16,
@@ -288,6 +376,8 @@ Rules:
         }}>
           <div style={{ fontSize: 12, color: "var(--muted)", letterSpacing: "0.1em", marginBottom: 10 }}>YOUR SONG SO FAR</div>
           <div style={{ fontFamily: "'Fraunces', serif", fontSize: 18, lineHeight: 1.6 }}>
+            <span style={{ color: "var(--accent)" }}>Key of {selectedKey}</span>
+            {" · "}
             {progression ? <><span style={{ color: "var(--accent)" }}>{progression.name}</span> ({progression.roman})</> : "no chords yet"}
             {" · "}
             {style ? STYLES.find(s => s.id === style).label : "no style yet"}
