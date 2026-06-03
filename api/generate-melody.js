@@ -3,7 +3,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { key, mood, chordProgression, sections } = req.body;
+  const { key, mood, progressionSections, sections } = req.body;
   // sections: [{ id: "verse", label: "Verse", lyrics: "..." }, ...]
 
   const results = {};
@@ -11,11 +11,12 @@ export default async function handler(req, res) {
   for (const section of sections) {
     if (!section.lyrics) continue;
 
+    const sectionChords = progressionSections?.[section.id] || "";
     const prompt = `You are a music arranger for piano. Write an ABC notation melody for the ${section.label} section (8 bars, 4/4 time).
 
 Key: ${key}
 Style/Mood: ${mood}
-Chord progression (one chord per bar, cycling): ${chordProgression}
+Chord progression for this section (Roman numerals): ${sectionChords}
 Lyrics (${section.label}): ${section.lyrics}
 
 Rules:

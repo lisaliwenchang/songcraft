@@ -4,58 +4,27 @@ import SheetMusic from "./SheetMusic";
 import { transposeProgression, normalizeKey } from "./chordUtils";
 
 // ---------- Data ----------
+// sections: verse, prechorus (optional), chorus, bridge (optional)
+// roman numerals use – as delimiter; each section is an independent progression
 const PROGRESSIONS = [
-  // Taylor Swift
   {
     id: "ts-lovestory", artist: "Taylor Swift", song: "Love Story",
-    roman: "I–V–vi–IV", vibe: "Bright, romantic, soaring",
-    notes: "Main verse & chorus — one of the most singable progressions in pop",
+    vibe: "Bright, romantic, soaring — key of D major",
+    sections: {
+      verse:     "I–IV–vi–IV",
+      prechorus: "IV–V–vi–I–IV–V",
+      chorus:    "I–V–vi–IV–V",
+      bridge:    "vi–IV–I–V",
+    },
   },
-  {
-    id: "ts-youbelongwithme", artist: "Taylor Swift", song: "You Belong With Me",
-    roman: "I–V–vi–IV", vibe: "Upbeat, hopeful, anthem-like",
-    notes: "Same progression as Love Story but faster and more driving",
-  },
-  {
-    id: "ts-cruelSummer", artist: "Taylor Swift", song: "Cruel Summer",
-    roman: "vi–IV–I–V", vibe: "Tense, electric, bittersweet",
-    notes: "The vi start gives it that restless, longing feeling",
-  },
-  {
-    id: "ts-antihero", artist: "Taylor Swift", song: "Anti-Hero",
-    roman: "I–IV–vi–V", vibe: "Confessional, self-aware, wry",
-    notes: "Verse uses I–IV; the IV→vi pivot creates the introspective drop",
-  },
-  {
-    id: "ts-blankspace", artist: "Taylor Swift", song: "Blank Space",
-    roman: "I–vi–IV–V", vibe: "Sleek, dramatic, theatrical",
-    notes: "Classic doo-wop structure — feels both timeless and sharp",
-  },
-  // Bruno Mars
   {
     id: "bm-justheway", artist: "Bruno Mars", song: "Just The Way You Are",
-    roman: "I–vi–IV–I", vibe: "Warm, devoted, intimate",
-    notes: "The loop never resolves to V — keeps it endlessly tender",
-  },
-  {
-    id: "bm-marryyou", artist: "Bruno Mars", song: "Marry You",
-    roman: "I–IV–I–V", vibe: "Carefree, joyful, spontaneous",
-    notes: "Simple and bouncy — the IV bounce is what makes it feel celebratory",
-  },
-  {
-    id: "bm-grenade", artist: "Bruno Mars", song: "Grenade",
-    roman: "i–VI–III–VII", vibe: "Dramatic, heartbroken, intense",
-    notes: "Minor key — the VI–III–VII descent drives the emotional weight",
-  },
-  {
-    id: "bm-countonme", artist: "Bruno Mars", song: "Count On Me",
-    roman: "I–V–vi–IV", vibe: "Sweet, friendly, warm",
-    notes: "Gentle fingerpicked feel — same DNA as countless beloved songs",
-  },
-  {
-    id: "bm-thatswhatIlike", artist: "Bruno Mars", song: "That's What I Like",
-    roman: "I–IV–I–V", vibe: "Funky, confident, groove-forward",
-    notes: "Rhythm and groove carry this more than harmonic complexity",
+    vibe: "Warm, devoted, intimate — key of F major",
+    sections: {
+      verse:     "I–vi–IV–I",
+      prechorus: "vi–II–V–I",
+      chorus:    "I–vi–IV–I",
+    },
   },
 ];
 
@@ -143,7 +112,7 @@ export default function SongCraft() {
     const sectionList = orderedSections.map((s) => s.label).join(", ");
     const prompt = `You are a songwriter. Write original song lyrics with these sections: ${sectionList}.
 Style: ${styleObj.label} (${styleObj.desc}).
-Chord progression mood: ${progression.name} — ${progression.vibe}.
+Chord progression mood: ${progression.song} by ${progression.artist} — ${progression.vibe}.
 ${theme ? `Theme / subject: ${theme}.` : "Pick an evocative, universal theme."}
 
 Rules:
@@ -194,7 +163,7 @@ Rules:
         body: JSON.stringify({
           key: selectedKey,
           mood: `${styleObj.label} (${styleObj.desc})`,
-          chordProgression: progression.roman,
+          progressionSections: progression.sections,
           sections,
         }),
       });
@@ -276,7 +245,7 @@ Rules:
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {PROGRESSIONS.filter((p) => p.artist === artist).map((p) => {
                   const sel = progression?.id === p.id;
-                  const chords = transposeProgression(p.roman, normalizeKey(selectedKey));
+                  const sectionLabels = { verse: "Verse", prechorus: "Pre-Chorus", chorus: "Chorus", bridge: "Bridge" };
                   return (
                     <button key={p.id} onClick={() => setProgression(p)} style={{
                       textAlign: "left", cursor: "pointer", padding: "16px 18px",
@@ -285,21 +254,29 @@ Rules:
                       borderRadius: 14, transition: "all .2s", color: "var(--ink)",
                       boxShadow: sel ? "0 0 0 3px rgba(232,160,78,.15)" : "none",
                     }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
-                        <div>
-                          <span style={{ fontFamily: "'Fraunces', serif", fontStyle: "italic", fontSize: 18 }}>{p.song}</span>
-                          <span style={{ fontSize: 11, color: "var(--muted)", marginLeft: 10 }}>{p.roman}</span>
-                        </div>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+                        <span style={{ fontFamily: "'Fraunces', serif", fontStyle: "italic", fontSize: 18 }}>{p.song}</span>
                         {sel && <span style={{ color: "var(--accent)", flexShrink: 0 }}>●</span>}
                       </div>
-                      <div style={{ fontSize: 16, color: "var(--accent)", fontFamily: "'Space Mono', monospace", marginBottom: 8, letterSpacing: "0.05em" }}>
-                        {chords.join(" – ")}
-                      </div>
-                      <div style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.5, fontFamily: "'Fraunces', serif" }}>
+                      {Object.entries(p.sections).map(([sectionId, roman]) => {
+                        const chords = transposeProgression(roman, normalizeKey(selectedKey));
+                        const isOptional = sectionId === "prechorus" || sectionId === "bridge";
+                        return (
+                          <div key={sectionId} style={{ marginBottom: 8 }}>
+                            <span style={{ fontSize: 10, color: isOptional ? "var(--muted)" : "var(--accent)", letterSpacing: "0.1em" }}>
+                              {sectionLabels[sectionId]}{isOptional ? " (optional)" : ""}
+                            </span>
+                            <div style={{ fontSize: 14, color: "var(--accent)", fontFamily: "'Space Mono', monospace", marginTop: 2 }}>
+                              {chords.join(" – ")}
+                            </div>
+                            <div style={{ fontSize: 10, color: "var(--muted)", fontFamily: "'Space Mono', monospace" }}>
+                              {roman}
+                            </div>
+                          </div>
+                        );
+                      })}
+                      <div style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.5, fontFamily: "'Fraunces', serif", marginTop: 8, borderTop: "1px solid var(--line)", paddingTop: 8 }}>
                         {p.vibe}
-                      </div>
-                      <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4, lineHeight: 1.4, fontStyle: "italic" }}>
-                        {p.notes}
                       </div>
                     </button>
                   );
@@ -399,7 +376,11 @@ Rules:
               }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
                   <span style={{ fontFamily: "'Fraunces', serif", fontSize: 20, fontStyle: "italic", color: "var(--accent)" }}>{s.label}</span>
-                  {progression && <span style={{ fontSize: 11, color: "var(--muted)" }}>{progression.roman}</span>}
+                  {progression?.sections[s.id] && (
+                    <span style={{ fontSize: 11, color: "var(--muted)" }}>
+                      {transposeProgression(progression.sections[s.id], normalizeKey(selectedKey)).join(" – ")}
+                    </span>
+                  )}
                 </div>
                 <textarea value={lyricsBySection[s.id] || ""} onChange={(e) => updateLyric(s.id, e.target.value)}
                   placeholder={`Lyrics for the ${s.label.toLowerCase()}…`} rows={4}
@@ -447,7 +428,7 @@ Rules:
           <div style={{ fontFamily: "'Fraunces', serif", fontSize: 18, lineHeight: 1.6 }}>
             <span style={{ color: "var(--accent)" }}>Key of {selectedKey}</span>
             {" · "}
-            {progression ? <><span style={{ color: "var(--accent)" }}>{progression.song}</span> ({progression.roman})</> : "no chords yet"}
+            {progression ? <span style={{ color: "var(--accent)" }}>{progression.song}</span> : "no song yet"}
             {" · "}
             {style ? STYLES.find(s => s.id === style).label : "no style yet"}
             <br />
