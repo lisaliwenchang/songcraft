@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import abcjs from "abcjs";
 
-export default function SheetMusic({ abcNotation }) {
+function StaffBlock({ label, abcNotation }) {
   const containerRef = useRef(null);
 
   useEffect(() => {
@@ -17,7 +17,26 @@ export default function SheetMusic({ abcNotation }) {
     });
   }, [abcNotation]);
 
-  if (!abcNotation) return null;
+  return (
+    <div style={{ marginBottom: 24 }}>
+      <div style={{
+        fontFamily: "'Fraunces', serif", fontStyle: "italic", fontSize: 16,
+        color: "var(--accent)", marginBottom: 8,
+      }}>
+        {label}
+      </div>
+      <div
+        ref={containerRef}
+        className="abc-container"
+        style={{ width: "100%", overflowX: "auto", background: "#fff", borderRadius: 12, padding: "12px 8px" }}
+      />
+    </div>
+  );
+}
+
+export default function SheetMusic({ abcBySection }) {
+  const entries = Object.entries(abcBySection || {}).filter(([, abc]) => abc);
+  if (entries.length === 0) return null;
 
   return (
     <div style={{ marginTop: 32 }}>
@@ -38,17 +57,13 @@ export default function SheetMusic({ abcNotation }) {
           stroke: none !important;
         }
       `}</style>
-      <div
-        ref={containerRef}
-        className="abc-container"
-        style={{
-          width: "100%",
-          overflowX: "auto",
-          background: "#fff",
-          borderRadius: 12,
-          padding: "12px 8px",
-        }}
-      />
+      {entries.map(([sectionId, abc]) => (
+        <StaffBlock
+          key={sectionId}
+          label={sectionId.charAt(0).toUpperCase() + sectionId.slice(1)}
+          abcNotation={abc}
+        />
+      ))}
     </div>
   );
 }

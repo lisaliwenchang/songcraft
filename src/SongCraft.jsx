@@ -61,7 +61,7 @@ export default function SongCraft() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [theme, setTheme] = useState("");
-  const [abcNotation, setAbcNotation] = useState("");
+  const [abcBySection, setAbcBySection] = useState({});
   const [melodyLoading, setMelodyLoading] = useState(false);
   const [melodyError, setMelodyError] = useState("");
   const resultRef = useRef(null);
@@ -92,7 +92,7 @@ export default function SongCraft() {
     if (!style) { setError("Pick a style first so the lyrics match the mood."); return; }
     if (!progression) { setError("Pick a chord progression to anchor the feel."); return; }
     setLoading(true);
-    setAbcNotation("");
+    setAbcBySection({});
 
     const styleObj = STYLES.find((s) => s.id === style);
     const sectionList = orderedSections.map((s) => s.label).join(", ");
@@ -133,11 +133,15 @@ Rules:
     setMelodyError("");
     if (!progression) { setMelodyError("Pick a chord progression first."); return; }
     if (!style) { setMelodyError("Pick a style first."); return; }
-    const verseLyrics = lyricsBySection["verse"] || "";
-    if (!verseLyrics) { setMelodyError("Add some verse lyrics first so the melody can follow the rhythm."); return; }
+    const hasAnyLyrics = orderedSections.some((s) => lyricsBySection[s.id]);
+    if (!hasAnyLyrics) { setMelodyError("Add some lyrics first so the melody can follow the rhythm."); return; }
     setMelodyLoading(true);
 
     const styleObj = STYLES.find((s) => s.id === style);
+    const sections = orderedSections
+      .filter((s) => lyricsBySection[s.id])
+      .map((s) => ({ id: s.id, label: s.label, lyrics: lyricsBySection[s.id] }));
+
     try {
       const res = await fetch("/api/generate-melody", {
         method: "POST",
@@ -146,12 +150,12 @@ Rules:
           key: selectedKey,
           mood: `${styleObj.label} (${styleObj.desc})`,
           chordProgression: progression.roman,
-          lyrics: verseLyrics,
+          sections,
         }),
       });
       const data = await res.json();
-      if (data.abc) {
-        setAbcNotation(data.abc);
+      if (data.sections) {
+        setAbcBySection(data.sections);
       } else {
         setMelodyError("Couldn't generate sheet music — try again.");
       }
@@ -364,7 +368,7 @@ Rules:
                 {melodyLoading ? "GENERATING SHEET MUSIC…" : "♩ GENERATE MELODY SHEET MUSIC"}
               </button>
               {melodyError && <div style={{ color: "#e87a4e", fontSize: 13, marginTop: 12, textAlign: "center" }}>{melodyError}</div>}
-              <SheetMusic abcNotation={abcNotation} />
+              <SheetMusic abcBySection={abcBySection} />
             </div>
           </Step>
         )}
