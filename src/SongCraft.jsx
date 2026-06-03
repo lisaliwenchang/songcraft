@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 
 // ---------- Data ----------
 const PROGRESSIONS = [
@@ -37,6 +37,10 @@ export default function SongCraft() {
   const [activeSections, setActiveSections] = useState(["verse", "chorus"]);
   const [style, setStyle] = useState(null);
   const [lyricsBySection, setLyricsBySection] = useState({});
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [theme, setTheme] = useState("");
+  const resultRef = useRef(null);
 
   const toggleSection = (id, required) => {
     if (required) return;
@@ -49,6 +53,47 @@ export default function SongCraft() {
 
   const updateLyric = (sectionId, value) => {
     setLyricsBySection((prev) => ({ ...prev, [sectionId]: value }));
+  };
+
+  const generateLyrics = async () => {
+    setError("");
+    if (!style) { setError("Pick a style first so the lyrics match the mood."); return; }
+    if (!progression) { setError("Pick a chord progression to anchor the feel."); return; }
+    setLoading(true);
+
+    const styleObj = STYLES.find((s) => s.id === style);
+    const sectionList = orderedSections.map((s) => s.label).join(", ");
+    const prompt = `You are a songwriter. Write original song lyrics with these sections: ${sectionList}.
+Style: ${styleObj.label} (${styleObj.desc}).
+Chord progression mood: ${progression.name} — ${progression.vibe}.
+${theme ? `Theme / subject: ${theme}.` : "Pick an evocative, universal theme."}
+
+Rules:
+- Return ONLY valid JSON, no markdown, no preamble.
+- Shape: {"verse": "line\\nline...", "chorus": "...", ...} using ONLY these keys: ${orderedSections.map(s => `"${s.id}"`).join(", ")}.
+- Each section is 2-4 lines, separated by \\n.
+- Make the chorus the catchiest, most repeatable part.`;
+
+    try {
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 1000,
+          messages: [{ role: "user", content: prompt }],
+        }),
+      });
+      const data = await res.json();
+      const text = data.content.map((i) => i.text || "").join("").replace(/```json|```/g, "").trim();
+      const parsed = JSON.parse(text);
+      setLyricsBySection((prev) => ({ ...prev, ...parsed }));
+      setTimeout(() => resultRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+    } catch (e) {
+      setError("Couldn't generate lyrics — try again in a moment.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const Step = ({ n, title, children }) => (
@@ -181,7 +226,32 @@ export default function SongCraft() {
 
         {/* Step 4: Lyrics */}
         <Step n="04" title="Write the lyrics">
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div style={{ marginBottom: 18 }}>
+            <label style={{ fontSize: 12, color: "var(--muted)", letterSpacing: "0.05em" }}>THEME OR SUBJECT (optional)</label>
+            <input value={theme} onChange={(e) => setTheme(e.target.value)}
+              placeholder="e.g. leaving home, a summer that didn't last, second chances"
+              style={{
+                width: "100%", marginTop: 8, padding: "12px 16px", background: "var(--card)",
+                border: "1px solid var(--line)", borderRadius: 10, color: "var(--ink)",
+                fontFamily: "'Space Mono', monospace", fontSize: 14, boxSizing: "border-box",
+              }} />
+          </div>
+
+          <button onClick={generateLyrics} disabled={loading} style={{
+            width: "100%", padding: "16px", background: "var(--accent)", color: "#14110f",
+            border: "none", borderRadius: 12, cursor: loading ? "wait" : "pointer",
+            fontFamily: "'Space Mono', monospace", fontWeight: 700, fontSize: 14,
+            letterSpacing: "0.05em", marginBottom: 12, opacity: loading ? 0.7 : 1,
+          }}>
+            {loading ? "WRITING…" : "✦ GENERATE LYRICS WITH AI"}
+          </button>
+          <p style={{ fontSize: 12, color: "var(--muted)", textAlign: "center", marginTop: 0, marginBottom: 20 }}>
+            Or just write your own in the boxes below.
+          </p>
+
+          {error && <div style={{ color: "#e87a4e", fontSize: 13, marginBottom: 16, textAlign: "center" }}>{error}</div>}
+
+          <div ref={resultRef} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             {orderedSections.map((s) => (
               <div key={s.id} style={{
                 background: "var(--card)", border: "1px solid var(--line)", borderRadius: 14, padding: 18,
