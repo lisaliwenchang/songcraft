@@ -1,17 +1,62 @@
 import React, { useState, useRef, useEffect } from "react";
 import ChordChart from "./ChordChart";
 import SheetMusic from "./SheetMusic";
+import { transposeProgression, normalizeKey } from "./chordUtils";
 
 // ---------- Data ----------
 const PROGRESSIONS = [
-  { id: "1564", name: "The Anthem", roman: "I–V–vi–IV", keyC: "C–G–Am–F", vibe: "Uplifting, used in countless pop hits" },
-  { id: "4536", name: "Sensitive", roman: "IV–V–iii–vi", keyC: "F–G–Em–Am", vibe: "Emotional, J-pop & ballad staple" },
-  { id: "6415", name: "The Sad One", roman: "vi–IV–I–V", keyC: "Am–F–C–G", vibe: "Melancholy but hopeful" },
-  { id: "1645", name: "Doo-Wop", roman: "I–vi–IV–V", keyC: "C–Am–F–G", vibe: "50s, nostalgic, warm" },
-  { id: "1545", name: "Folk Drive", roman: "I–V–IV–V", keyC: "C–G–F–G", vibe: "Driving, singalong" },
-  { id: "2516", name: "Jazzy", roman: "ii–V–I–vi", keyC: "Dm–G–C–Am", vibe: "Smooth, jazz turnaround" },
-  { id: "1453", name: "Dreamy", roman: "I–IV–V–iii", keyC: "C–F–G–Em", vibe: "Floaty, wistful" },
-  { id: "canon", name: "The Canon", roman: "I–V–vi–iii–IV–I–IV–V", keyC: "C–G–Am–Em–F–C–F–G", vibe: "Grand, cascading, classical" },
+  // Taylor Swift
+  {
+    id: "ts-lovestory", artist: "Taylor Swift", song: "Love Story",
+    roman: "I–V–vi–IV", vibe: "Bright, romantic, soaring",
+    notes: "Main verse & chorus — one of the most singable progressions in pop",
+  },
+  {
+    id: "ts-youbelongwithme", artist: "Taylor Swift", song: "You Belong With Me",
+    roman: "I–V–vi–IV", vibe: "Upbeat, hopeful, anthem-like",
+    notes: "Same progression as Love Story but faster and more driving",
+  },
+  {
+    id: "ts-cruelSummer", artist: "Taylor Swift", song: "Cruel Summer",
+    roman: "vi–IV–I–V", vibe: "Tense, electric, bittersweet",
+    notes: "The vi start gives it that restless, longing feeling",
+  },
+  {
+    id: "ts-antihero", artist: "Taylor Swift", song: "Anti-Hero",
+    roman: "I–IV–vi–V", vibe: "Confessional, self-aware, wry",
+    notes: "Verse uses I–IV; the IV→vi pivot creates the introspective drop",
+  },
+  {
+    id: "ts-blankspace", artist: "Taylor Swift", song: "Blank Space",
+    roman: "I–vi–IV–V", vibe: "Sleek, dramatic, theatrical",
+    notes: "Classic doo-wop structure — feels both timeless and sharp",
+  },
+  // Bruno Mars
+  {
+    id: "bm-justheway", artist: "Bruno Mars", song: "Just The Way You Are",
+    roman: "I–vi–IV–I", vibe: "Warm, devoted, intimate",
+    notes: "The loop never resolves to V — keeps it endlessly tender",
+  },
+  {
+    id: "bm-marryyou", artist: "Bruno Mars", song: "Marry You",
+    roman: "I–IV–I–V", vibe: "Carefree, joyful, spontaneous",
+    notes: "Simple and bouncy — the IV bounce is what makes it feel celebratory",
+  },
+  {
+    id: "bm-grenade", artist: "Bruno Mars", song: "Grenade",
+    roman: "i–VI–III–VII", vibe: "Dramatic, heartbroken, intense",
+    notes: "Minor key — the VI–III–VII descent drives the emotional weight",
+  },
+  {
+    id: "bm-countonme", artist: "Bruno Mars", song: "Count On Me",
+    roman: "I–V–vi–IV", vibe: "Sweet, friendly, warm",
+    notes: "Gentle fingerpicked feel — same DNA as countless beloved songs",
+  },
+  {
+    id: "bm-thatswhatIlike", artist: "Bruno Mars", song: "That's What I Like",
+    roman: "I–IV–I–V", vibe: "Funky, confident, groove-forward",
+    notes: "Rhythm and groove carry this more than harmonic complexity",
+  },
 ];
 
 const SECTIONS = [
@@ -219,29 +264,49 @@ Rules:
         </Step>
 
         {/* Step 2: Progression */}
-        <Step n="02" title="Pick a chord progression">
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 14 }}>
-            {PROGRESSIONS.map((p) => {
-              const sel = progression?.id === p.id;
-              return (
-                <button key={p.id} onClick={() => setProgression(p)} style={{
-                  textAlign: "left", cursor: "pointer", padding: "18px 18px 16px",
-                  background: sel ? "var(--card2)" : "var(--card)",
-                  border: `1px solid ${sel ? "var(--accent)" : "var(--line)"}`,
-                  borderRadius: 14, transition: "all .2s", color: "var(--ink)",
-                  boxShadow: sel ? "0 0 0 3px rgba(232,160,78,.15)" : "none",
-                }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                    <span style={{ fontFamily: "'Fraunces', serif", fontStyle: "italic", fontSize: 19 }}>{p.name}</span>
-                    {sel && <span style={{ color: "var(--accent)" }}>●</span>}
-                  </div>
-                  <div style={{ fontSize: 15, color: "var(--accent)", marginBottom: 4 }}>{p.roman}</div>
-                  <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8 }}>in C: {p.keyC}</div>
-                  <div style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.5, fontFamily: "'Fraunces', serif" }}>{p.vibe}</div>
-                </button>
-              );
-            })}
-          </div>
+        <Step n="02" title="Pick a song's chord progression">
+          <p style={{ color: "var(--muted)", fontSize: 13, marginTop: -10, marginBottom: 18 }}>
+            Chords shown in your chosen key of <span style={{ color: "var(--accent)" }}>{selectedKey}</span>.
+          </p>
+          {["Taylor Swift", "Bruno Mars"].map((artist) => (
+            <div key={artist} style={{ marginBottom: 28 }}>
+              <div style={{ fontSize: 11, color: "var(--muted)", letterSpacing: "0.15em", marginBottom: 12 }}>
+                {artist.toUpperCase()}
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {PROGRESSIONS.filter((p) => p.artist === artist).map((p) => {
+                  const sel = progression?.id === p.id;
+                  const chords = transposeProgression(p.roman, normalizeKey(selectedKey));
+                  return (
+                    <button key={p.id} onClick={() => setProgression(p)} style={{
+                      textAlign: "left", cursor: "pointer", padding: "16px 18px",
+                      background: sel ? "var(--card2)" : "var(--card)",
+                      border: `1px solid ${sel ? "var(--accent)" : "var(--line)"}`,
+                      borderRadius: 14, transition: "all .2s", color: "var(--ink)",
+                      boxShadow: sel ? "0 0 0 3px rgba(232,160,78,.15)" : "none",
+                    }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+                        <div>
+                          <span style={{ fontFamily: "'Fraunces', serif", fontStyle: "italic", fontSize: 18 }}>{p.song}</span>
+                          <span style={{ fontSize: 11, color: "var(--muted)", marginLeft: 10 }}>{p.roman}</span>
+                        </div>
+                        {sel && <span style={{ color: "var(--accent)", flexShrink: 0 }}>●</span>}
+                      </div>
+                      <div style={{ fontSize: 16, color: "var(--accent)", fontFamily: "'Space Mono', monospace", marginBottom: 8, letterSpacing: "0.05em" }}>
+                        {chords.join(" – ")}
+                      </div>
+                      <div style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.5, fontFamily: "'Fraunces', serif" }}>
+                        {p.vibe}
+                      </div>
+                      <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4, lineHeight: 1.4, fontStyle: "italic" }}>
+                        {p.notes}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </Step>
 
         {/* Step 3: Structure */}
@@ -382,7 +447,7 @@ Rules:
           <div style={{ fontFamily: "'Fraunces', serif", fontSize: 18, lineHeight: 1.6 }}>
             <span style={{ color: "var(--accent)" }}>Key of {selectedKey}</span>
             {" · "}
-            {progression ? <><span style={{ color: "var(--accent)" }}>{progression.name}</span> ({progression.roman})</> : "no chords yet"}
+            {progression ? <><span style={{ color: "var(--accent)" }}>{progression.song}</span> ({progression.roman})</> : "no chords yet"}
             {" · "}
             {style ? STYLES.find(s => s.id === style).label : "no style yet"}
             <br />
