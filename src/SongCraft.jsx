@@ -8,22 +8,23 @@ import { transposeProgression, normalizeKey } from "./chordUtils";
 // roman numerals use – as delimiter; each section is an independent progression
 const PROGRESSIONS = [
   {
-    id: "ts-lovestory", artist: "Taylor Swift", song: "Love Story",
-    vibe: "Bright, romantic, soaring — key of D major",
+    id: "ts-shakeitoff", artist: "Taylor Swift", song: "Shake It Off",
+    vibe: "Carefree, upbeat, defiant — key of G major",
     sections: {
-      verse:     "I–IV–vi–IV",
-      prechorus: "IV–V–vi–I–IV–V",
-      chorus:    "I–V–vi–IV–V",
-      bridge:    "vi–IV–I–V",
+      verse:     "ii–IV–I",
+      prechorus: "ii–IV–I",
+      chorus:    "ii–IV–I",
+      bridge:    "IV–I–IV–I",
     },
   },
   {
-    id: "bm-justheway", artist: "Bruno Mars", song: "Just The Way You Are",
-    vibe: "Warm, devoted, intimate — key of F major",
+    id: "bm-ijustmight", artist: "Bruno Mars", song: "I Just Might",
+    vibe: "Smooth, romantic, soulful — key of F major",
     sections: {
-      verse:     "I–vi–IV–I",
-      prechorus: "vi–II–V–I",
-      chorus:    "I–vi–IV–I",
+      verse:     "I–ii7",
+      prechorus: "I–ii7–IV–V",
+      chorus:    "I–ii7–IV–I",
+      bridge:    "IV–V–I–vi",
     },
   },
 ];
