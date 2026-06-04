@@ -114,6 +114,7 @@ export default function SongCraft() {
   const [error, setError] = useState("");
   const [theme, setTheme] = useState("");
   const [abcBySection, setAbcBySection] = useState({});
+  const [errorsBySection, setErrorsBySection] = useState({});
   const [melodyLoading, setMelodyLoading] = useState(false);
   const [melodyError, setMelodyError] = useState("");
   const resultRef = useRef(null);
@@ -208,6 +209,7 @@ Rules:
       const data = await res.json();
       if (data.sections) {
         setAbcBySection(data.sections);
+        setErrorsBySection(data.errors || {});
         // Surface any per-section failures so empty staves are explained.
         const failed = Object.entries(data.errors || {}).map(([id]) => {
           const s = orderedSections.find((x) => x.id === id);
@@ -460,7 +462,7 @@ Rules:
             </button>
             {melodyError && <div style={{ color: "#e87a4e", fontSize: 13, marginTop: 12, textAlign: "center" }}>{melodyError}</div>}
 
-            <SheetMusic abcBySection={abcBySection} />
+            <SheetMusic abcBySection={abcBySection} errorsBySection={errorsBySection} orderedSections={orderedSections} />
             <ChordChart abcBySection={abcBySection} orderedSections={orderedSections} />
           </Step>
         )}
