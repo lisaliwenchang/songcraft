@@ -208,6 +208,14 @@ Rules:
       const data = await res.json();
       if (data.sections) {
         setAbcBySection(data.sections);
+        // Surface any per-section failures so empty staves are explained.
+        const failed = Object.entries(data.errors || {}).map(([id]) => {
+          const s = orderedSections.find((x) => x.id === id);
+          return s ? s.label : id;
+        });
+        if (failed.length > 0) {
+          setMelodyError(`Couldn't generate: ${failed.join(", ")}. Try regenerating.`);
+        }
       } else {
         setMelodyError("Couldn't generate sheet music — try again.");
       }

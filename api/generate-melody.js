@@ -98,6 +98,7 @@ export default async function handler(req, res) {
   const { key, mood, progressionSections, sections } = req.body;
 
   const results = {};
+  const errors = {};
 
   for (const section of sections) {
     if (!section.lyrics) continue;
@@ -178,25 +179,57 @@ Hard rules:
 - Chord symbols in ABC syntax: "ChordName"Note — a 4-beat chord at its bar start, a 2-beat chord mid-bar, a 1-beat chord on its exact beat.
 - After each melody line add a w: line. Each note carrying a new syllable gets one syllable; melisma-continuation notes get none. Hyphen - joins syllables within a word; space separates words. The number of syllables in w: must equal the number of sung (non-rest, non-melisma) notes.`;
 
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": process.env.ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 1200,
-        temperature: 1,
-        messages: [{ role: "user", content: prompt }],
-      }),
-    });
+    // Clean and validate ABC from a raw model response.
+    const extractAbc = (data) => {
+      if (!data || !Array.isArray(data.content)) return "";
+      let text = data.content.map((i) => i.text || "").join("");
+      // Strip code fences and any preamble before the X: header.
+      text = text.replace(/```[a-z]*\n?/gi, "").replace(/```/g, "");
+      const xIdx = text.indexOf("X:");
+      if (xIdx > 0) text = text.slice(xIdx);
+      return text.trim();
+    };
 
-    const data = await response.json();
-    const abc = data.content.map((i) => i.text || "").join("").replace(/```abc|```/g, "").trim();
-    results[section.id] = abc;
+    // An ABC is usable only if it has the K: header AND at least one bar of notes.
+    const isUsableAbc = (abc) =>
+      /\nK:/.test("\n" + abc) && /[A-Ga-g]/.test(abc.split(/\nK:[^\n]*\n/)[1] || "");
+
+    const callClaude = async (temp) => {
+      const r = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": process.env.ANTHROPIC_API_KEY,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 1200,
+          temperature: temp,
+          messages: [{ role: "user", content: prompt }],
+        }),
+      });
+      const data = await r.json();
+      if (!r.ok) {
+        throw new Error(data?.error?.message || `Anthropic API ${r.status}`);
+      }
+      return extractAbc(data);
+    };
+
+    try {
+      let abc = await callClaude(0.7);
+      // Retry once at lower temperature if the first attempt is unusable.
+      if (!isUsableAbc(abc)) {
+        abc = await callClaude(0.3);
+      }
+      results[section.id] = abc;
+      if (!isUsableAbc(abc)) {
+        errors[section.id] = "Model did not return usable notation.";
+      }
+    } catch (e) {
+      errors[section.id] = e.message || "Generation failed.";
+    }
   }
 
-  res.status(200).json({ sections: results });
+  res.status(200).json({ sections: results, errors });
 }
