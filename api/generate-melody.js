@@ -189,6 +189,14 @@ Hard rules:
       text = text.replace(/```[a-z]*\n?/gi, "").replace(/```/g, "");
       const xIdx = text.indexOf("X:");
       if (xIdx > 0) text = text.slice(xIdx);
+      // CRITICAL: remove blank lines. In ABC, a blank line ends the tune, so a
+      // blank line between the K: header and the body makes the music vanish
+      // (abcjs renders an empty staff). Drop all empty lines inside the tune.
+      text = text
+        .split("\n")
+        .map((l) => l.trimEnd())
+        .filter((l) => l.trim() !== "")
+        .join("\n");
       return text.trim();
     };
 
