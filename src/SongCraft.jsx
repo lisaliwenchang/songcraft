@@ -296,9 +296,12 @@ Rules:
                         <span style={{ fontFamily: "'Fraunces', serif", fontStyle: "italic", fontSize: 18 }}>{p.song}</span>
                         {sel && <span style={{ color: "var(--accent)", flexShrink: 0 }}>●</span>}
                       </div>
-                      {Object.entries(p.sections).map(([sectionId, roman]) => {
-                        const chords = transposeProgression(roman, normalizeKey(selectedKey));
+                      {Object.entries(p.sections).map(([sectionId, sectionData]) => {
+                        const chords = transposeProgression(sectionData, normalizeKey(selectedKey));
                         const isOptional = sectionId === "prechorus" || sectionId === "bridge";
+                        const romanLabel = Array.isArray(sectionData)
+                          ? sectionData.map((e) => e.chord).join(" – ")
+                          : sectionData;
                         return (
                           <div key={sectionId} style={{ marginBottom: 8 }}>
                             <span style={{ fontSize: 10, color: isOptional ? "var(--muted)" : "var(--accent)", letterSpacing: "0.1em" }}>
@@ -308,7 +311,7 @@ Rules:
                               {chords.join(" – ")}
                             </div>
                             <div style={{ fontSize: 10, color: "var(--muted)", fontFamily: "'Space Mono', monospace" }}>
-                              {roman}
+                              {romanLabel}
                             </div>
                           </div>
                         );
