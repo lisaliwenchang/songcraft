@@ -4,8 +4,9 @@ import SheetMusic from "./SheetMusic";
 import { transposeProgression, normalizeKey } from "./chordUtils";
 
 // ---------- Data ----------
-// sections: verse, prechorus (optional), chorus, bridge (optional)
-// roman numerals use – as delimiter; each section is an independent progression
+// sections can be either:
+//   string: "I–IV–V" (old format, equal bars assumed)
+//   array:  [{ chord: "I", beats: 4 }, ...] (exact beat-level timing)
 const PROGRESSIONS = [
   {
     id: "ts-shakeitoff", artist: "Taylor Swift", song: "Shake It Off",
@@ -21,10 +22,46 @@ const PROGRESSIONS = [
     id: "bm-ijustmight", artist: "Bruno Mars", song: "I Just Might",
     vibe: "Smooth, romantic, soulful — key of F major",
     sections: {
-      verse:     "I–ii7",
-      prechorus: "I–ii7–IV–V",
-      chorus:    "I–ii7–IV–I",
-      bridge:    "IV–V–I–vi",
+      verse: [
+        { chord: "I",   beats: 4 },
+        { chord: "ii7", beats: 4 },
+        { chord: "I",   beats: 4 },
+        { chord: "ii7", beats: 4 },
+        { chord: "I",   beats: 4 },
+        { chord: "ii7", beats: 4 },
+        { chord: "I",   beats: 4 },
+        { chord: "ii7", beats: 4 },
+      ],
+      prechorus: [
+        { chord: "I",   beats: 4 },
+        { chord: "ii7", beats: 4 },
+        { chord: "I",   beats: 4 },
+        { chord: "ii7", beats: 4 },
+      ],
+      chorus: [
+        { chord: "iii",   beats: 4 },
+        { chord: "ii7",   beats: 4 },
+        { chord: "iii",   beats: 4 },
+        { chord: "ii7",   beats: 4 },
+        { chord: "iii",   beats: 4 },
+        { chord: "ii7",   beats: 2 },
+        { chord: "iii",   beats: 1 },
+        { chord: "iv",    beats: 1 },
+        { chord: "ii7/V", beats: 4 },
+        { chord: "ii7/V", beats: 4 },
+      ],
+      bridge: [
+        { chord: "iii",   beats: 4 },
+        { chord: "ii7",   beats: 4 },
+        { chord: "iii",   beats: 4 },
+        { chord: "ii7",   beats: 4 },
+        { chord: "iii",   beats: 4 },
+        { chord: "ii7",   beats: 2 },
+        { chord: "iii",   beats: 1 },
+        { chord: "iv",    beats: 1 },
+        { chord: "ii7/V", beats: 4 },
+        { chord: "ii7/V", beats: 4 },
+      ],
     },
   },
 ];
