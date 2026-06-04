@@ -100,8 +100,10 @@ export default async function handler(req, res) {
   const results = {};
   const errors = {};
 
-  for (const section of sections) {
-    if (!section.lyrics) continue;
+  // Process all sections in parallel so we don't exceed the serverless
+  // function timeout when generating verse + pre-chorus + chorus + bridge.
+  await Promise.all(sections.map(async (section) => {
+    if (!section.lyrics) return;
 
     const sectionData = progressionSections?.[section.id] || "I–IV–V–I";
     const beatSchedule = toBeatSchedule(sectionData, key);
@@ -229,7 +231,7 @@ Hard rules:
     } catch (e) {
       errors[section.id] = e.message || "Generation failed.";
     }
-  }
+  }));
 
   res.status(200).json({ sections: results, errors });
 }
