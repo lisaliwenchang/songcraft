@@ -435,28 +435,25 @@ Rules:
           </div>
         </Step>
 
-        {/* Step 6: Chord Chart + Sheet Music */}
+        {/* Step 6: Sheet Music + derived Lead Sheet */}
         {hasLyrics && progression && (
           <Step n="06" title="Your lead sheet">
-            <ChordChart
-              progression={progression}
-              selectedKey={selectedKey}
-              lyricsBySection={lyricsBySection}
-              orderedSections={orderedSections}
-            />
+            <p style={{ color: "var(--muted)", fontSize: 13, marginTop: -10, marginBottom: 18 }}>
+              Generate the melody to see the sheet music and a chord-over-lyrics lead sheet,
+              with chords aligned to the exact words they fall on.
+            </p>
+            <button onClick={generateMelody} disabled={melodyLoading} style={{
+              width: "100%", padding: "16px", background: "var(--accent)", color: "#14110f",
+              border: "none", borderRadius: 12, cursor: melodyLoading ? "wait" : "pointer",
+              fontFamily: "'Space Mono', monospace", fontWeight: 700, fontSize: 14,
+              letterSpacing: "0.05em", opacity: melodyLoading ? 0.7 : 1,
+            }}>
+              {melodyLoading ? "GENERATING SHEET MUSIC…" : "♩ GENERATE MELODY & LEAD SHEET"}
+            </button>
+            {melodyError && <div style={{ color: "#e87a4e", fontSize: 13, marginTop: 12, textAlign: "center" }}>{melodyError}</div>}
 
-            <div style={{ marginTop: 32 }}>
-              <button onClick={generateMelody} disabled={melodyLoading} style={{
-                width: "100%", padding: "16px", background: "var(--card2)", color: "var(--accent)",
-                border: "1px solid var(--accent)", borderRadius: 12, cursor: melodyLoading ? "wait" : "pointer",
-                fontFamily: "'Space Mono', monospace", fontWeight: 700, fontSize: 14,
-                letterSpacing: "0.05em", opacity: melodyLoading ? 0.7 : 1,
-              }}>
-                {melodyLoading ? "GENERATING SHEET MUSIC…" : "♩ GENERATE MELODY SHEET MUSIC"}
-              </button>
-              {melodyError && <div style={{ color: "#e87a4e", fontSize: 13, marginTop: 12, textAlign: "center" }}>{melodyError}</div>}
-              <SheetMusic abcBySection={abcBySection} />
-            </div>
+            <SheetMusic abcBySection={abcBySection} />
+            <ChordChart abcBySection={abcBySection} orderedSections={orderedSections} />
           </Step>
         )}
 
