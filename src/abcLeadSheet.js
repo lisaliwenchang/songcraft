@@ -59,7 +59,10 @@ function tokenizeMelody(line) {
     NOTE_EVENT.lastIndex = i;
     const m = NOTE_EVENT.exec(line);
     if (m && m.index === i) {
-      events.push({ type: "note" });
+      // Rests (z/Z/x) carry no syllable in the w: line — mark them separately.
+      const head = m[0];
+      const isRest = /[zZx]/.test(head) && !/[A-Ga-g]/.test(head);
+      events.push({ type: isRest ? "rest" : "note" });
       i = m.index + m[0].length;
       // skip any trailing duration digits / dots / ties
       while (i < line.length && /[0-9/.\->()]/.test(line[i])) i++;
@@ -104,6 +107,11 @@ export function abcToLeadSheet(abc) {
     for (const ev of events) {
       if (ev.type === "chord") {
         pendingChord = ev.value;
+        continue;
+      }
+      if (ev.type === "rest") {
+        // Rests consume no syllable. Leave any pending chord change pending so
+        // the next sung note is the one that displays the new chord.
         continue;
       }
       // ev.type === "note": attach the current syllable (if any)
