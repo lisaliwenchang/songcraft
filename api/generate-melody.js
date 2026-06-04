@@ -108,35 +108,62 @@ export default async function handler(req, res) {
     const totalBars = Math.ceil(totalBeats / 4);
     const scheduleText = buildScheduleText(beatSchedule);
 
-    // Map lyric lines to bars so each line spreads across its full bar span
+    // Map lyric lines to bars so each line spreads across its full bar span.
+    // Also count syllables per line so Claude provides enough singable notes.
     const lyricLines = section.lyrics.split("\n").map((l) => l.trim()).filter(Boolean);
     const barsPerLine = Math.max(1, Math.round(totalBars / Math.max(1, lyricLines.length)));
+    const countSyllables = (line) =>
+      line.split(/\s+/).filter(Boolean).reduce((sum, word) => {
+        // each hyphen-separated piece is a syllable; fall back to vowel-group estimate
+        const dash = word.split("-").filter(Boolean).length;
+        if (dash > 1) return sum + dash;
+        const vowels = (word.toLowerCase().match(/[aeiouy]+/g) || []).length;
+        return sum + Math.max(1, vowels);
+      }, 0);
+    let totalSyllables = 0;
     const lineMapping = lyricLines
       .map((line, i) => {
         const startBar = i * barsPerLine + 1;
         const endBar = Math.min(totalBars, startBar + barsPerLine - 1);
-        return `Bars ${startBar}-${endBar}: "${line}"`;
+        const syl = countSyllables(line);
+        totalSyllables += syl;
+        return `Bars ${startBar}-${endBar} (~${syl} syllables): "${line}"`;
       })
       .join("\n");
 
     const profile = resolveStyleProfile(mood);
 
-    const prompt = `You are a distinctive melodist writing a ${section.label} for a song. Write it in ABC notation, exactly ${totalBars} bars in 4/4 time.
+    // Per-section role so verse / pre-chorus / chorus / bridge contrast instead
+    // of converging on one rhythmic skeleton.
+    const SECTION_ROLES = {
+      verse: "This is the VERSE: more understated and narrative. Keep the melodic range lower and the rhythm closer to natural speech. Save the big moments for the chorus.",
+      prechorus: "This is the PRE-CHORUS: it must BUILD tension. Rise in pitch and increase rhythmic momentum compared to the verse, pushing toward the chorus.",
+      chorus: "This is the CHORUS: the melodic and rhythmic PEAK. Higher notes, the most memorable/hooky rhythm, the widest leaps. It must feel clearly different from and bigger than the verse.",
+      bridge: "This is the BRIDGE: provide CONTRAST. Use a different rhythmic shape or register than the verse and chorus — surprise the listener.",
+    };
+    const sectionRole = SECTION_ROLES[section.id] || "";
+
+    const prompt = `You are a distinctive melodist writing the ${section.label} of a song in ABC notation: exactly ${totalBars} bars, 4/4 time.
 
 Key: ${key}
 
-MUSICAL STYLE — this must shape the rhythm and contour. Do NOT write a generic even-eighth-note melody:
+SECTION ROLE — this section must have its own identity:
+${sectionRole}
+
+MUSICAL STYLE — shape the rhythm and contour to this mood. Do NOT write a generic even-eighth-note melody:
 ${profile.feel}
 Tempo: ${profile.tempo}
 
-RHYTHMIC VARIETY IS REQUIRED. A flat stream of equal notes is a failure. Use a mix of:
-- Dotted rhythms (e.g. A3 B for a dotted-quarter + eighth), syncopation, and notes tied across the beat.
-- Rests for breathing room between phrases (z, z2).
-- Pickups (anacrusis) leading into strong downbeats.
-- Melisma where it fits the style: hold one syllable across 2-3 notes by joining them with no new syllable in the w: line (use * or extend with a hyphen-less continuation).
-- Vary note lengths so stressed syllables and phrase-ends land on longer notes.
+CARRY ALL THE LYRICS — THIS OVERRIDES THE STYLE. This section has about ${totalSyllables} syllables. You MUST provide enough singable note onsets for every syllable. Never run out of notes before the words end. If the style calls for long/sparse notes, you may still need more notes than feels minimal — the words come first. Only use melisma (a syllable held over multiple notes) deliberately, not as a way to avoid writing notes.
 
-LYRIC-TO-BAR LAYOUT — sing each lyric line across the bars shown (not crammed into one bar):
+RHYTHMIC VARIETY IS REQUIRED. A flat stream of equal notes is a failure. Draw from (don't use all every time):
+- Dotted rhythms (e.g. A3 B = dotted-quarter + eighth), syncopation, ties across the beat.
+- Rests for breathing room — but place them musically, NOT mechanically on the same beat of every bar.
+- Pickups into downbeats where natural.
+- Vary note lengths so stressed syllables and phrase-ends land on longer notes.
+IMPORTANT: do not start every odd bar (or any fixed bar position) with a rest. Vary WHERE rests and long notes fall from phrase to phrase. Avoid a repeating per-bar rhythmic template.
+
+LYRIC-TO-BAR LAYOUT — sing each line across the bars shown (not crammed into one bar):
 ${lineMapping}
 
 EXACT CHORD SCHEDULE — place each chord symbol where shown (4 beats = 1 bar):
@@ -146,20 +173,10 @@ Hard rules:
 - Output ONLY raw ABC notation. No markdown, no code fences, no commentary.
 - First line: X:1
 - Headers: T:${section.label}, M:4/4, L:1/8, ${profile.tempo}, K:${key}
-- Exactly ${totalBars} bars; every bar totals 4 beats (8 eighth-note units with L:1/8). This is non-negotiable even while using varied rhythms.
+- Exactly ${totalBars} bars; every bar totals 4 beats (8 eighth-note units with L:1/8). Non-negotiable.
 - Single melody line, no harmony voices.
-- Place chord symbols in ABC syntax: "ChordName"Note — a 4-beat chord at its bar start, a 2-beat chord mid-bar, a 1-beat chord on its exact beat.
-- After each melody line, add a w: line. Each note that carries a new syllable gets one syllable; notes continuing a melisma get no syllable. Hyphen - joins syllables within a word, space separates words.
-
-Example showing dotted rhythm, a rest, a pickup, and melisma (R&B feel):
-X:1
-T:Verse
-M:4/4
-L:1/8
-Q:1/4=84
-K:F
-"F"z A3 c2 A2 | "F"G3 F E2 D2 | "Gm7"d4 c2 BA | "Gm7"A6 z2 |
-w: Packed my bags at se-ven-teen dreams big-ger than this scene`;
+- Chord symbols in ABC syntax: "ChordName"Note — a 4-beat chord at its bar start, a 2-beat chord mid-bar, a 1-beat chord on its exact beat.
+- After each melody line add a w: line. Each note carrying a new syllable gets one syllable; melisma-continuation notes get none. Hyphen - joins syllables within a word; space separates words. The number of syllables in w: must equal the number of sung (non-rest, non-melisma) notes.`;
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
