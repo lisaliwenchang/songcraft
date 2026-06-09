@@ -7,6 +7,16 @@ const GREETING = {
     "Hi! I'm the SongCraft helper. Ask me how anything works — picking a key, generating a melody, why a section came out empty — or just tell me what you think.",
 };
 
+const TICKETS_KEY = "songcraft_tickets"; // open ticket ids awaiting a reply
+
+function loadTickets() {
+  try { return JSON.parse(localStorage.getItem(TICKETS_KEY) || "[]"); }
+  catch { return []; }
+}
+function saveTickets(ids) {
+  try { localStorage.setItem(TICKETS_KEY, JSON.stringify(ids)); } catch {}
+}
+
 export default function ChatWidget() {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([GREETING]);
@@ -20,6 +30,36 @@ export default function ChatWidget() {
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, open, escalating]);
+
+  // When the chat opens, check any pending tickets for replies from the owner.
+  useEffect(() => {
+    if (!open) return;
+    const tickets = loadTickets();
+    if (tickets.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      const stillOpen = [];
+      const replies = [];
+      for (const t of tickets) {
+        try {
+          const res = await fetch(`/api/escalations?ticket=${encodeURIComponent(t)}`);
+          if (!res.ok) { stillOpen.push(t); continue; }
+          const data = await res.json();
+          if (data.status === "answered" && data.reply) replies.push(data.reply);
+          else stillOpen.push(t);
+        } catch { stillOpen.push(t); }
+      }
+      if (cancelled) return;
+      if (replies.length > 0) {
+        setMessages((prev) => [
+          ...prev,
+          ...replies.map((r) => ({ role: "assistant", content: `↩ Reply from the team:\n\n${r}` })),
+        ]);
+        saveTickets(stillOpen);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [open]);
 
   const send = async () => {
     const text = input.trim();
@@ -57,21 +97,32 @@ export default function ChatWidget() {
 
   const submitEscalation = async () => {
     const addr = email.trim();
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(addr)) return;
+    // Email is optional, but if provided it must look valid.
+    if (addr && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(addr)) return;
     const history = messages
       .filter((m) => m !== GREETING)
       .map((m) => `${m.role}: ${m.content}`)
       .join("\n");
     try {
-      await fetch("/api/escalations", {
+      const res = await fetch("/api/escalations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userEmail: addr, question: escalateQuestion, history }),
+        body: JSON.stringify({ userEmail: addr || null, question: escalateQuestion, history }),
       });
+      const data = await res.json();
+      if (data.ticketId) {
+        // Remember this ticket so we can show the reply when they return.
+        saveTickets([...loadTickets(), data.ticketId]);
+      }
       track("chat_escalation_submitted");
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: `Thanks! We'll follow up at ${addr} as soon as we can.` },
+        {
+          role: "assistant",
+          content:
+            "Thanks — your question's been sent to the team. Reopen this chat later and I'll show you the reply right here." +
+            (addr ? " We may also reach you by email." : ""),
+        },
       ]);
     } catch (e) {
       setMessages((prev) => [
@@ -134,7 +185,7 @@ export default function ChatWidget() {
           {escalating ? (
             <div style={{ padding: 12, borderTop: "1px solid #3a322b" }}>
               <div style={{ fontSize: 11, color: "#a89888", marginBottom: 8 }}>
-                Leave your email and we'll get back to you:
+                Reopen this chat later to see the reply here. Email is optional (for a heads-up):
               </div>
               <div style={{ display: "flex", gap: 8 }}>
                 <input
@@ -142,7 +193,7 @@ export default function ChatWidget() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter") submitEscalation(); }}
-                  placeholder="you@example.com"
+                  placeholder="you@example.com (optional)"
                   style={{
                     flex: 1, background: "#14110f", border: "1px solid #3a322b", borderRadius: 10,
                     color: "#f0e8de", padding: "10px 12px", fontFamily: "'Space Mono', monospace", fontSize: 13,
@@ -182,11 +233,14 @@ export default function ChatWidget() {
       )}
 
       <button onClick={() => setOpen((o) => !o)} style={{
-        width: 56, height: 56, borderRadius: "50%", border: "1px solid #e8a04e",
-        background: "#e8a04e", color: "#14110f", cursor: "pointer", fontSize: 24,
-        boxShadow: "0 8px 24px rgba(0,0,0,.4)", float: "right",
-      }} aria-label="Open help chat">
-        {open ? "×" : "♪"}
+        display: "flex", alignItems: "center", gap: 8, float: "right",
+        height: 48, padding: open ? "0 16px" : "0 18px", borderRadius: 999,
+        border: "1px solid #e8a04e", background: "#e8a04e", color: "#14110f",
+        cursor: "pointer", fontSize: 14, fontWeight: 700,
+        fontFamily: "'Space Mono', monospace", letterSpacing: "0.03em",
+        boxShadow: "0 8px 24px rgba(0,0,0,.4)",
+      }} aria-label={open ? "Close help chat" : "Open help chat"}>
+        {open ? "✕ Close" : "💬 Need help?"}
       </button>
     </div>
   );
