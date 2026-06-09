@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { track } from "@vercel/analytics";
 import ChordChart from "./ChordChart";
 import SheetMusic from "./SheetMusic";
 import { transposeProgression, normalizeKey } from "./chordUtils";
@@ -175,6 +176,11 @@ Rules:
       const parsed = JSON.parse(text);
       setLyricsBySection((prev) => ({ ...prev, ...parsed }));
       didGenerate.current = true;
+      track("generate_lyrics", {
+        style,
+        song: progression.song,
+        sections: orderedSections.map((s) => s.id).join(","),
+      });
     } catch (e) {
       setError("Couldn't generate lyrics — try again in a moment.");
     } finally {
@@ -210,10 +216,18 @@ Rules:
       if (data.sections) {
         setAbcBySection(data.sections);
         setErrorsBySection(data.errors || {});
+        const succeeded = Object.keys(data.sections).filter((id) => data.sections[id]);
         // Surface any per-section failures so empty staves are explained.
         const failed = Object.entries(data.errors || {}).map(([id]) => {
           const s = orderedSections.find((x) => x.id === id);
           return s ? s.label : id;
+        });
+        track("generate_melody", {
+          style,
+          song: progression.song,
+          key: selectedKey,
+          sectionsGenerated: succeeded.length,
+          hadErrors: failed.length > 0,
         });
         if (failed.length > 0) {
           setMelodyError(`Couldn't generate: ${failed.join(", ")}. Try regenerating.`);
