@@ -12,11 +12,14 @@ export default function ChatWidget() {
   const [messages, setMessages] = useState([GREETING]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [escalating, setEscalating] = useState(false); // showing the email capture
+  const [email, setEmail] = useState("");
+  const [escalateQuestion, setEscalateQuestion] = useState("");
   const scrollRef = useRef(null);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages, open]);
+  }, [messages, open, escalating]);
 
   const send = async () => {
     const text = input.trim();
@@ -36,6 +39,12 @@ export default function ChatWidget() {
       const data = await res.json();
       const reply = data.reply || "Sorry — I couldn't answer that right now. Please try again.";
       setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
+      if (data.escalate) {
+        // Remember the question that triggered escalation; show email capture.
+        setEscalateQuestion(text);
+        setEscalating(true);
+        track("chat_escalation_offered");
+      }
     } catch (e) {
       setMessages((prev) => [
         ...prev,
@@ -43,6 +52,35 @@ export default function ChatWidget() {
       ]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const submitEscalation = async () => {
+    const addr = email.trim();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(addr)) return;
+    const history = messages
+      .filter((m) => m !== GREETING)
+      .map((m) => `${m.role}: ${m.content}`)
+      .join("\n");
+    try {
+      await fetch("/api/escalations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userEmail: addr, question: escalateQuestion, history }),
+      });
+      track("chat_escalation_submitted");
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: `Thanks! We'll follow up at ${addr} as soon as we can.` },
+      ]);
+    } catch (e) {
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: "Sorry — couldn't save that. Please try again." },
+      ]);
+    } finally {
+      setEscalating(false);
+      setEmail("");
     }
   };
 
@@ -93,23 +131,53 @@ export default function ChatWidget() {
             )}
           </div>
 
-          <div style={{ padding: 12, borderTop: "1px solid #3a322b", display: "flex", gap: 8 }}>
-            <input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={onKeyDown}
-              placeholder="Ask a question…"
-              style={{
-                flex: 1, background: "#14110f", border: "1px solid #3a322b", borderRadius: 10,
-                color: "#f0e8de", padding: "10px 12px", fontFamily: "'Space Mono', monospace", fontSize: 13,
-                outline: "none",
-              }}
-            />
-            <button onClick={send} disabled={loading} style={{
-              background: "#e8a04e", color: "#14110f", border: "none", borderRadius: 10,
-              padding: "0 14px", cursor: loading ? "wait" : "pointer", fontWeight: 700, fontSize: 13,
-            }}>→</button>
-          </div>
+          {escalating ? (
+            <div style={{ padding: 12, borderTop: "1px solid #3a322b" }}>
+              <div style={{ fontSize: 11, color: "#a89888", marginBottom: 8 }}>
+                Leave your email and we'll get back to you:
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") submitEscalation(); }}
+                  placeholder="you@example.com"
+                  style={{
+                    flex: 1, background: "#14110f", border: "1px solid #3a322b", borderRadius: 10,
+                    color: "#f0e8de", padding: "10px 12px", fontFamily: "'Space Mono', monospace", fontSize: 13,
+                    outline: "none",
+                  }}
+                />
+                <button onClick={submitEscalation} style={{
+                  background: "#e8a04e", color: "#14110f", border: "none", borderRadius: 10,
+                  padding: "0 14px", cursor: "pointer", fontWeight: 700, fontSize: 13,
+                }}>Send</button>
+              </div>
+              <button onClick={() => setEscalating(false)} style={{
+                background: "none", border: "none", color: "#a89888", fontSize: 11,
+                cursor: "pointer", marginTop: 6, padding: 0, fontFamily: "'Space Mono', monospace",
+              }}>No thanks</button>
+            </div>
+          ) : (
+            <div style={{ padding: 12, borderTop: "1px solid #3a322b", display: "flex", gap: 8 }}>
+              <input
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={onKeyDown}
+                placeholder="Ask a question…"
+                style={{
+                  flex: 1, background: "#14110f", border: "1px solid #3a322b", borderRadius: 10,
+                  color: "#f0e8de", padding: "10px 12px", fontFamily: "'Space Mono', monospace", fontSize: 13,
+                  outline: "none",
+                }}
+              />
+              <button onClick={send} disabled={loading} style={{
+                background: "#e8a04e", color: "#14110f", border: "none", borderRadius: 10,
+                padding: "0 14px", cursor: loading ? "wait" : "pointer", fontWeight: 700, fontSize: 13,
+              }}>→</button>
+            </div>
+          )}
         </div>
       )}
 

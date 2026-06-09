@@ -17,9 +17,15 @@ COMMON ISSUES AND ANSWERS:
 - "Can it make audio / a real recording?": No — SongCraft creates readable sheet music and chord charts for musicians to play themselves, not audio. (It is not like Suno.)
 - "Can I download it?": Not yet — they can screenshot the sheet music for now.
 
+ESCALATION — when NOT to answer:
+Some questions you must NOT answer because only the site owner knows. These include: pricing or whether it will ever charge, future plans/roadmap, account/billing/refund issues, partnerships, anything legal, or anything you are not confident about based on the facts above.
+When a question falls into that category, do NOT guess or invent an answer. Instead reply briefly and warmly that it's a great question you can't answer for certain, and that you'll pass it to the team. Then end your message with the exact token [[ESCALATE]] on its own at the very end. Do not explain the token.
+Example: "That's a really good question — I'm not able to speak to pricing or future plans myself, but I can pass this to the SongCraft team so they can follow up. [[ESCALATE]]"
+
 RULES:
 - Keep answers to 2-4 sentences unless they ask for detail.
-- If you don't know or it's outside SongCraft, say so honestly.
+- If a question is about how SongCraft works (per the facts above), answer it directly — do NOT escalate those.
+- Only use [[ESCALATE]] for owner-only or genuinely uncertain questions.
 - Never make up features that don't exist above.`;
 
 export default async function handler(req, res) {
@@ -70,8 +76,14 @@ export default async function handler(req, res) {
     if (!response.ok) {
       throw new Error(data?.error?.message || `Anthropic API ${response.status}`);
     }
-    const reply = data.content.map((i) => i.text || "").join("").trim();
-    res.status(200).json({ reply });
+    let reply = data.content.map((i) => i.text || "").join("").trim();
+
+    // Detect the escalation marker; strip it from the visible reply and tell
+    // the frontend to collect the user's email for follow-up.
+    const escalate = reply.includes("[[ESCALATE]]");
+    if (escalate) reply = reply.replace(/\[\[ESCALATE\]\]/g, "").trim();
+
+    res.status(200).json({ reply, escalate });
   } catch (e) {
     res.status(500).json({ error: e.message || "Chat failed" });
   }
